@@ -53,10 +53,25 @@ class ConfirmButton(View):
             
             await channel_b.send(embed=embed)
         
-        # ユーザーにDMを送信
+        # チャンネルAから削除
+        try:
+            channel_a = client.get_channel(CHANNEL_A_ID)
+            original_message = await channel_a.fetch_message(self.message_id)
+            await original_message.delete()
+        except:
+            pass
+        
+        # ユーザーにDMを送信（画像付き）
         try:
             user = await client.fetch_user(self.user_id)
-            await user.send("✅ 提出が受理されました。")
+            dm_embed = discord.Embed(
+                title="✅ 提出が受理されました",
+                color=discord.Color.green(),
+                timestamp=self.timestamp
+            )
+            dm_embed.add_field(name="提出時刻", value=self.timestamp.strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+            dm_embed.set_image(url=self.image_url)
+            await user.send(embed=dm_embed)
         except:
             pass
         
@@ -71,7 +86,7 @@ async def on_ready():
     print(f'チャンネルA ID: {CHANNEL_A_ID}')
     print(f'チャンネルB ID: {CHANNEL_B_ID}')
 
-@tree.command(name="up", description="画像を提出します")
+@tree.command(name="up", description="リザルトを提出します")
 @app_commands.describe(画像="提出する画像")
 async def up_command(interaction: discord.Interaction, 画像: discord.Attachment):
     # 画像かどうかを確認
@@ -113,7 +128,7 @@ async def up_command(interaction: discord.Interaction, 画像: discord.Attachmen
     }
     
     # コマンドの応答
-    await interaction.response.send_message("✅ 提出が送信されました。", ephemeral=True)
+    await interaction.response.send_message("✅ リザルトが送信されました。", ephemeral=True)
 
 @client.event
 async def on_message(message):
@@ -126,7 +141,22 @@ async def on_message(message):
         ref_message_id = message.reference.message_id
         data = submission_data[ref_message_id]
         
-        # 元のメッセージを取得して削除
+        # チャンネルBに投稿（却下理由付き）
+        channel_b = client.get_channel(CHANNEL_B_ID)
+        if channel_b:
+            embed = discord.Embed(
+                title="提出が却下されました",
+                color=discord.Color.red(),
+                timestamp=data['timestamp']
+            )
+            embed.add_field(name="提出者", value=data['username'], inline=False)
+            embed.add_field(name="提出時刻", value=data['timestamp'].strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+            embed.add_field(name="却下理由", value=message.content, inline=False)
+            embed.set_image(url=data['image_url'])
+            
+            await channel_b.send(embed=embed)
+        
+        # 元のメッセージを削除（チャンネルAから）
         try:
             channel_a = client.get_channel(CHANNEL_A_ID)
             original_message = await channel_a.fetch_message(ref_message_id)
@@ -134,10 +164,18 @@ async def on_message(message):
         except:
             pass
         
-        # ユーザーにDMを送信
+        # ユーザーにDMを送信（画像と理由付き）
         try:
             user = await client.fetch_user(data['user_id'])
-            await user.send(f"❌ 提出が受理されませんでした。\n理由: {message.content}")
+            dm_embed = discord.Embed(
+                title="❌ リザルトが受理されませんでした",
+                color=discord.Color.red(),
+                timestamp=data['timestamp']
+            )
+            dm_embed.add_field(name="提出時刻", value=data['timestamp'].strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+            dm_embed.add_field(name="理由", value=message.content, inline=False)
+            dm_embed.set_image(url=data['image_url'])
+            await user.send(embed=dm_embed)
         except:
             pass
         
