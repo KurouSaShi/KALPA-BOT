@@ -4,6 +4,8 @@ from discord.ui import Button, View
 import os
 from datetime import datetime
 import asyncio
+from aiohttp import web
+import threading
 
 # Intents の設定
 intents = discord.Intents.default()
@@ -148,5 +150,28 @@ async def on_message(message):
         # 提出データから削除
         del submission_data[ref_message_id]
 
+# 簡易 HTTP サーバー (Render の要件を満たすため)
+async def handle_health(request):
+    return web.Response(text="Bot is running")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle_health)
+    app.router.add_get('/health', handle_health)
+    
+    port = int(os.getenv('PORT', 8080))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f'HTTP サーバーがポート {port} で起動しました')
+
+async def main():
+    # HTTP サーバーを起動
+    asyncio.create_task(start_web_server())
+    # Bot を起動
+    await client.start(TOKEN)
+
 # Bot を起動
-client.run(TOKEN)
+if __name__ == "__main__":
+    asyncio.run(main())
